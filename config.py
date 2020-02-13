@@ -72,7 +72,7 @@ parser.add_argument('--weight_decay', type=float, default=0.0) # the model maybe
 parser.add_argument('--grad_clip', type=float, default=1.0)
 parser.add_argument('--loss_weights', nargs='+', type=float, default=[1,1,1])
 # training configs
-parser.add_argument('--resume', type=str, default='', metavar='PATH')
+parser.add_argument('--resume', type=str, default='./models/demo.pth.tar', metavar='PATH')
 parser.add_argument('--evaluate', action='store_true',
                     help="evaluation only")
 parser.add_argument('--epochs', type=int, default=6)

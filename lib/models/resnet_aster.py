@@ -83,6 +83,7 @@ class ResNet_ASTER(nn.Module):
     self.layer5 = self._make_layer(512, 3, [2, 1]) # [1, 25]
 
     if with_lstm:
+      # LSTM: Input dim 512, output dim 256
       self.rnn = nn.LSTM(512, 256, bidirectional=True, num_layers=2, batch_first=True)
       self.out_planes = 2 * 256
     else:

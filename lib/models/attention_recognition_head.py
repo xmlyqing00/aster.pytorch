@@ -96,20 +96,20 @@ class AttentionRecognitionHead(nn.Module):
     stored_emitted_symbols = list()
 
     for i in range(self.max_len_labels):
-      output, state = self.decoder(inflated_encoder_feats, state, y_prev)
-      log_softmax_output = F.log_softmax(output, dim=1)
+      output, state = self.decoder(inflated_encoder_feats, state, y_prev) # y_prev 5, state 1x5x512, output 5x97, state: 1x5x512
+      log_softmax_output = F.log_softmax(output, dim=1) # log_softmax_output 5x97
 
-      sequence_scores = _inflate(sequence_scores, self.num_classes, 1)
+      sequence_scores = _inflate(sequence_scores, self.num_classes, 1) # input seq_score 5x1, output seq_score 5x97
       sequence_scores += log_softmax_output
       scores, candidates = sequence_scores.view(batch_size, -1).topk(beam_width, dim=1)
-
+      # score 1x5, candidates 1x5,
       # Reshape input = (bk, 1) and sequence_scores = (bk, 1)
-      y_prev = (candidates % self.num_classes).view(batch_size * beam_width)
+      y_prev = (candidates % self.num_classes).view(batch_size * beam_width) # Select the top 5
       sequence_scores = scores.view(batch_size * beam_width, 1)
 
       # Update fields for next timestep
-      predecessors = (candidates / self.num_classes + pos_index.expand_as(candidates)).view(batch_size * beam_width, 1)
-      state = state.index_select(1, predecessors.squeeze())
+      predecessors = (candidates / self.num_classes + pos_index.expand_as(candidates)).view(batch_size * beam_width, 1) # predecessors 5x1
+      state = state.index_select(1, predecessors.squeeze()) # state 1x5x512
 
       # Update sequence socres and erase scores for <eos> symbol so that they aren't expanded
       stored_scores.append(sequence_scores.clone())
@@ -188,9 +188,9 @@ class AttentionUnit(nn.Module):
   def __init__(self, sDim, xDim, attDim):
     super(AttentionUnit, self).__init__()
 
-    self.sDim = sDim
-    self.xDim = xDim
-    self.attDim = attDim
+    self.sDim = sDim # sDim 512
+    self.xDim = xDim # xDim 512
+    self.attDim = attDim # attDim 512
 
     self.sEmbed = nn.Linear(sDim, attDim)
     self.xEmbed = nn.Linear(xDim, attDim)
@@ -207,7 +207,7 @@ class AttentionUnit(nn.Module):
     init.constant_(self.wEmbed.bias, 0)
 
   def forward(self, x, sPrev):
-    batch_size, T, _ = x.size()                      # [b x T x xDim]
+    batch_size, T, _ = x.size()                      # [b x T x xDim]  x.shape  5x25x512, sPrev.shape 1x5x512
     x = x.view(-1, self.xDim)                        # [(b x T) x xDim]
     xProj = self.xEmbed(x)                           # [(b x T) x attDim]
     xProj = xProj.view(batch_size, T, -1)            # [b x T x attDim]
@@ -231,11 +231,11 @@ class AttentionUnit(nn.Module):
 class DecoderUnit(nn.Module):
   def __init__(self, sDim, xDim, yDim, attDim):
     super(DecoderUnit, self).__init__()
-    self.sDim = sDim
-    self.xDim = xDim
-    self.yDim = yDim
-    self.attDim = attDim
-    self.emdDim = attDim
+    self.sDim = sDim # 512
+    self.xDim = xDim # 512
+    self.yDim = yDim # 97
+    self.attDim = attDim # 512
+    self.emdDim = attDim # 512
 
     self.attention_unit = AttentionUnit(sDim, xDim, attDim)
     self.tgt_embedding = nn.Embedding(yDim+1, self.emdDim) # the last is used for <BOS> 
@@ -253,11 +253,11 @@ class DecoderUnit(nn.Module):
     # x: feature sequence from the image decoder.
     batch_size, T, _ = x.size()
     alpha = self.attention_unit(x, sPrev)
-    context = torch.bmm(alpha.unsqueeze(1), x).squeeze(1)
-    yProj = self.tgt_embedding(yPrev.long())
+    context = torch.bmm(alpha.unsqueeze(1), x).squeeze(1) # 5 x 512
+    yProj = self.tgt_embedding(yPrev.long()) # 5x512
     # self.gru.flatten_parameters()
-    output, state = self.gru(torch.cat([yProj, context], 1).unsqueeze(1), sPrev)
+    output, state = self.gru(torch.cat([yProj, context], 1).unsqueeze(1), sPrev) # output 5x1x512, state 1x5x512
     output = output.squeeze(1)
 
-    output = self.fc(output)
+    output = self.fc(output) # 5x512 --> 5x97
     return output, state
